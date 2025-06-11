@@ -2,9 +2,11 @@ import re
 
 from bs4 import BeautifulSoup
 from requests import request
+from requests.models import Response
 
 from dto.schedule_service_dto import RetrieveScheduleChannelsServiceResponse, ChannelPairDTO, \
     RetrieveChannelScheduleServiceResponse, ScheduleDTO
+from enumeration.response_code_enum import ResponseCodeEnum
 from util.common_regex import CommonRegex
 
 
@@ -15,11 +17,16 @@ class ScheduleService:
 
         :return: List of available channels.
         """
-        # Build Response
-        service_response = RetrieveScheduleChannelsServiceResponse(channels=[])
         # Retrieve page
         response = self.__retrieve_html_or_default()
-        soup = BeautifulSoup(response, 'html.parser')
+        if response.status_code != 200:
+            return RetrieveScheduleChannelsServiceResponse(response_code=ResponseCodeEnum.INTERNAL_ERROR.code,
+                                                           response_message=ResponseCodeEnum.INTERNAL_ERROR.message,
+                                                           channels=[])
+        service_response = RetrieveScheduleChannelsServiceResponse(response_code=ResponseCodeEnum.SUCCESS.code,
+                                                                   response_message=ResponseCodeEnum.SUCCESS.message,
+                                                                   channels=[])
+        soup = BeautifulSoup(response.text, 'html.parser')
         channels = soup.find_all(class_='chbuttonsbox')
         for element in channels:
             for a in element.find_all('a'):
@@ -28,18 +35,23 @@ class ScheduleService:
                                         channel_href=a.get('href'))))
         return service_response
 
-    def get_schedule_by_channel(self, channel_href: str) -> str:
+    def get_schedule_by_channel(self, channel_href: str) -> RetrieveChannelScheduleServiceResponse:
         """
         Retrieves the schedule for a specific channel.
 
         :param channel_href: The URL or path of the channel to retrieve the schedule for.
         :return: HTML content of the channel's schedule.
         """
-        # Build Response
-        service_response = RetrieveChannelScheduleServiceResponse(schedules=[])
         # Retrieve page
         response = self.__retrieve_html_or_default(path=channel_href)
-        soup = BeautifulSoup(response, 'html.parser')
+        if response.status_code != 200:
+            return RetrieveChannelScheduleServiceResponse(response_code=ResponseCodeEnum.INTERNAL_ERROR.code,
+                                                          response_message=ResponseCodeEnum.INTERNAL_ERROR.message,
+                                                          schedules=[])
+        service_response = RetrieveChannelScheduleServiceResponse(response_code=ResponseCodeEnum.SUCCESS.code,
+                                                                  response_message=ResponseCodeEnum.SUCCESS.message,
+                                                                  schedules=[])
+        soup = BeautifulSoup(response.text, 'html.parser')
         box = soup.find_all(class_='listingbox')
         for element in box:
             for line in element.find('h4').text.split("\n"):
@@ -50,14 +62,14 @@ class ScheduleService:
                                          description=description.strip())))
         return service_response
 
-    def __retrieve_html_or_default(self, path: str = None) -> str:
+    def __retrieve_html_or_default(self, path: str = None) -> Response:
         """
         Retrieves the HTML content from a given path or returns a default message if the path is invalid.
 
         :param path: The URL or file path to retrieve HTML from.
         :return: HTML content as a string or a default message.
         """
-        return request('GET', f"https://www.staseraintv.com{path if path else ''}").text
+        return request('GET', f"https://www.staseraintv.com{path if path else ''}")
 
 
 if __name__ == '__main__':
